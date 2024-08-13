@@ -4,51 +4,84 @@ data = readtable('Pier_Data_BE.csv', 'VariableNamingRule', 'preserve');
 % Convert date column to MATLAB datenum
 date_nums = datenum(data.Date);
 
-% Helper function to convert angles to unit vectors
-angles_to_vectors = @(angles) [cosd(angles), sind(angles)];
-
-% Helper function to convert unit vectors to angles
-vectors_to_angles = @(vectors) atan2d(vectors(:,2), vectors(:,1));
-
-% Convert wave and current direction data for awc6 to unit vectors
+% Convert wave and current direction data for awc6
 waveMeanDirection_awc6 = str2double(data.('waveMeanDirection_awc6'));
 currentDirection_awc6 = str2double(data.('currentDirection_awc6'));
 
-wave_vectors_awc6 = angles_to_vectors(waveMeanDirection_awc6);
-current_vectors_awc6 = angles_to_vectors(currentDirection_awc6);
+% Step 1: Rotate the directions to align with the desired orientation
+% This is done by adjusting the coordinate system such that north is -72°,
+% south is 108°, upcoast is -90°, and downcoast is 90°
+waveMeanDirection_awc6 = wrapTo360(waveMeanDirection_awc6 - 72);
+currentDirection_awc6 = wrapTo360(currentDirection_awc6 - 72);
+
+% Step 2: Normalize directions to the range [-180, 180)
+waveMeanDirection_awc6 = mod(waveMeanDirection_awc6 + 180, 360) - 180;
+currentDirection_awc6 = mod(currentDirection_awc6 + 180, 360) - 180;
+
+% Filter out invalid directions (9999 or 'NA')
+valid_wave_direction_idx_awc6 = ~isnan(waveMeanDirection_awc6) & waveMeanDirection_awc6 ~= 9999;
+valid_current_direction_idx_awc6 = ~isnan(currentDirection_awc6) & currentDirection_awc6 ~= 9999;
 
 % Interpolate missing data for awc6 using unit vectors
-wave_time_idx_awc6 = find(~isnan(waveMeanDirection_awc6) & waveMeanDirection_awc6 ~= 9999);
-current_time_idx_awc6 = find(~isnan(currentDirection_awc6) & currentDirection_awc6 ~= 9999);
+wave_vectors_awc6 = [cosd(waveMeanDirection_awc6(valid_wave_direction_idx_awc6)), sind(waveMeanDirection_awc6(valid_wave_direction_idx_awc6))];
+current_vectors_awc6 = [cosd(currentDirection_awc6(valid_current_direction_idx_awc6)), sind(currentDirection_awc6(valid_current_direction_idx_awc6))];
 
-wave_vectors_awc6_interp = interp1(wave_time_idx_awc6, wave_vectors_awc6(wave_time_idx_awc6,:), 1:length(waveMeanDirection_awc6), 'pchip', 'extrap');
-current_vectors_awc6_interp = interp1(current_time_idx_awc6, current_vectors_awc6(current_time_idx_awc6,:), 1:length(currentDirection_awc6), 'pchip', 'extrap');
+wave_time_idx_awc6 = find(valid_wave_direction_idx_awc6);
+current_time_idx_awc6 = find(valid_current_direction_idx_awc6);
 
-% Convert interpolated unit vectors back to angles
-waveMeanDirection_awc6_interp = vectors_to_angles(wave_vectors_awc6_interp);
-currentDirection_awc6_interp = vectors_to_angles(current_vectors_awc6_interp);
+waveMeanDirection_awc6_interp = nan(size(waveMeanDirection_awc6));
+currentDirection_awc6_interp = nan(size(currentDirection_awc6));
+
+if ~isempty(wave_time_idx_awc6)
+    wave_vectors_awc6_interp = interp1(wave_time_idx_awc6, wave_vectors_awc6, 1:length(waveMeanDirection_awc6), 'pchip', 'extrap');
+    waveMeanDirection_awc6_interp = atan2d(wave_vectors_awc6_interp(:,2), wave_vectors_awc6_interp(:,1));
+end
+
+if ~isempty(current_time_idx_awc6)
+    current_vectors_awc6_interp = interp1(current_time_idx_awc6, current_vectors_awc6, 1:length(currentDirection_awc6), 'pchip', 'extrap');
+    currentDirection_awc6_interp = atan2d(current_vectors_awc6_interp(:,2), current_vectors_awc6_interp(:,1));
+end
 
 % Repeat the process for awc4.5
 waveMeanDirection_awc45 = str2double(data.('waveMeanDirection_awc4.5'));
 currentDirection_awc45 = str2double(data.('currentDirection_awc4.5'));
 
-wave_vectors_awc45 = angles_to_vectors(waveMeanDirection_awc45);
-current_vectors_awc45 = angles_to_vectors(currentDirection_awc45);
+% Rotate the directions to align with the desired orientation
+waveMeanDirection_awc45 = wrapTo360(waveMeanDirection_awc45 - 72);
+currentDirection_awc45 = wrapTo360(currentDirection_awc45 - 72);
 
-wave_time_idx_awc45 = find(~isnan(waveMeanDirection_awc45) & waveMeanDirection_awc45 ~= 9999);
-current_time_idx_awc45 = find(~isnan(currentDirection_awc45) & currentDirection_awc45 ~= 9999);
+% Normalize directions to the range [-180, 180)
+waveMeanDirection_awc45 = mod(waveMeanDirection_awc45 + 180, 360) - 180;
+currentDirection_awc45 = mod(currentDirection_awc45 + 180, 360) - 180;
 
-wave_vectors_awc45_interp = interp1(wave_time_idx_awc45, wave_vectors_awc45(wave_time_idx_awc45,:), 1:length(waveMeanDirection_awc45), 'pchip', 'extrap');
-current_vectors_awc45_interp = interp1(current_time_idx_awc45, current_vectors_awc45(current_time_idx_awc45,:), 1:length(currentDirection_awc45), 'pchip', 'extrap');
+valid_wave_direction_idx_awc45 = ~isnan(waveMeanDirection_awc45) & waveMeanDirection_awc45 ~= 9999;
+valid_current_direction_idx_awc45 = ~isnan(currentDirection_awc45) & currentDirection_awc45 ~= 9999;
 
-waveMeanDirection_awc45_interp = vectors_to_angles(wave_vectors_awc45_interp);
-currentDirection_awc45_interp = vectors_to_angles(current_vectors_awc45_interp);
+% Interpolate missing data for awc45 using unit vectors
+wave_vectors_awc45 = [cosd(waveMeanDirection_awc45(valid_wave_direction_idx_awc45)), sind(waveMeanDirection_awc45(valid_wave_direction_idx_awc45))];
+current_vectors_awc45 = [cosd(currentDirection_awc45(valid_current_direction_idx_awc45)), sind(currentDirection_awc45(valid_current_direction_idx_awc45))];
 
-% Initialize combined data arrays
+wave_time_idx_awc45 = find(valid_wave_direction_idx_awc45);
+current_time_idx_awc45 = find(valid_current_direction_idx_awc45);
+
+waveMeanDirection_awc45_interp = nan(size(waveMeanDirection_awc45));
+currentDirection_awc45_interp = nan(size(currentDirection_awc45));
+
+if ~isempty(wave_time_idx_awc45)
+    wave_vectors_awc45_interp = interp1(wave_time_idx_awc45, wave_vectors_awc45, 1:length(waveMeanDirection_awc45), 'pchip', 'extrap');
+    waveMeanDirection_awc45_interp = atan2d(wave_vectors_awc45_interp(:,2), wave_vectors_awc45_interp(:,1));
+end
+
+if ~isempty(current_time_idx_awc45)
+    current_vectors_awc45_interp = interp1(current_time_idx_awc45, current_vectors_awc45, 1:length(currentDirection_awc45), 'pchip', 'extrap');
+    currentDirection_awc45_interp = atan2d(current_vectors_awc45_interp(:,2), current_vectors_awc45_interp(:,1));
+end
+
+% Combine awc6 and awc45 data
 waveMeanDirection_combined = waveMeanDirection_awc6_interp;
 currentDirection_combined = currentDirection_awc6_interp;
 
-% Replace missing values in awc6 with values from awc4.5 for specified dates
+% Replace missing values in awc6 with values from awc45 for specified dates
 dates_awc6_missing = date_nums >= datenum(2022, 4, 1) & date_nums <= datenum(2022, 7, 31);
 waveMeanDirection_combined(dates_awc6_missing) = waveMeanDirection_awc45_interp(dates_awc6_missing);
 currentDirection_combined(dates_awc6_missing) = currentDirection_awc45_interp(dates_awc6_missing);
@@ -71,8 +104,8 @@ filtered_wind_speed = data.Uz(valid_idx);
 wave_height_awc6 = str2double(data.waveHs_awc6);
 current_speed_awc6 = str2double(data.currentSpeed_awc6);
 
-wave_height_awc6_interp = interp1(wave_time_idx_awc6, wave_height_awc6(wave_time_idx_awc6), 1:length(wave_height_awc6), 'pchip', 'extrap');
-current_speed_awc6_interp = interp1(current_time_idx_awc6, current_speed_awc6(current_time_idx_awc6), 1:length(current_speed_awc6), 'pchip', 'extrap');
+wave_height_awc6_interp = interp1(find(~isnan(wave_height_awc6)), wave_height_awc6(~isnan(wave_height_awc6)), 1:length(wave_height_awc6), 'pchip', 'extrap');
+current_speed_awc6_interp = interp1(find(~isnan(current_speed_awc6)), current_speed_awc6(~isnan(current_speed_awc6)), 1:length(current_speed_awc6), 'pchip', 'extrap');
 
 filtered_wave_height = wave_height_awc6_interp(valid_idx);
 filtered_current_speed = current_speed_awc6_interp(valid_idx);
@@ -82,41 +115,27 @@ g = 9.81; % gravity in m/s^2
 wave_period = 30 * 60; % 30 minutes in seconds
 filtered_wave_speed = sqrt(g * filtered_wave_height / (2 * pi / wave_period));
 
-% Adjust wave and current directions to the shoreward reference frame
-coastline_direction_deg = 72; % Coastline direction in degrees
-
-adjust_direction = @(direction) arrayfun(@(x) ...
-    (x >= 0 && x <= 72) * (x - coastline_direction_deg) + ...
-    (x > 72 && x <= 360) * (x - coastline_direction_deg) + ...
-    (x < 0) * (360 + x - coastline_direction_deg), direction);
-
-filtered_waveMeanDirection = adjust_direction(filtered_waveMeanDirection);
-filtered_currentDirection = adjust_direction(filtered_currentDirection);
-
-% Ensure directions are within the range [-180, 180)
-normalize_direction = @(x) mod(x + 180, 360) - 180;
-filtered_waveMeanDirection = normalize_direction(filtered_waveMeanDirection);
-filtered_currentDirection = normalize_direction(filtered_currentDirection);
-
-% Flip current and wave direction so that north is negative and south is positive
-filtered_currentDirection = -filtered_currentDirection;
-filtered_waveMeanDirection = -filtered_waveMeanDirection;
-
-% Ensure directions are within the range [-180, 180) again after flipping
-filtered_waveMeanDirection = normalize_direction(filtered_waveMeanDirection);
-filtered_currentDirection = normalize_direction(filtered_currentDirection);
-
-% Transpose the row vectors to column vectors
-filtered_wave_height = filtered_wave_height';
-filtered_current_speed = filtered_current_speed';
-filtered_wave_speed = filtered_wave_speed';
+% Ensure all filtered variables have the same number of rows
+nRows = length(filtered_dates);
+filtered_waveMeanDirection = filtered_waveMeanDirection(:);
+filtered_currentDirection = filtered_currentDirection(:);
+filtered_windDirection = filtered_windDirection(:);
+filtered_stressDirection = filtered_stressDirection(:);
+filtered_wind_speed = filtered_wind_speed(:);
+filtered_wave_height = filtered_wave_height(:);
+filtered_current_speed = filtered_current_speed(:);
+filtered_wave_speed = filtered_wave_speed(:);
 
 % Combine data into one matrix and remove rows with NaN values
-combined_data = [filtered_dates, filtered_windDirection, filtered_waveMeanDirection, filtered_currentDirection, filtered_stressDirection, filtered_wind_speed, filtered_wave_height, filtered_current_speed, filtered_wave_speed];
+combined_data = [filtered_dates, filtered_windDirection, filtered_waveMeanDirection, ...
+                 filtered_currentDirection, filtered_stressDirection, ...
+                 filtered_wind_speed, filtered_wave_height, filtered_current_speed, filtered_wave_speed];
 combined_data = combined_data(~any(isnan(combined_data), 2), :);
 
 % Save the combined data to a new CSV file
-output_table = array2table(combined_data, 'VariableNames', {'Date', 'WindDirection', 'WaveMeanDirection', 'CurrentDirection', 'StressDirection', 'WindSpeed', 'WaveHeight', 'CurrentSpeed', 'WaveSpeed'});
+output_table = array2table(combined_data, 'VariableNames', ...
+    {'Date', 'WindDirection', 'WaveMeanDirection', 'CurrentDirection', ...
+     'StressDirection', 'WindSpeed', 'WaveHeight', 'CurrentSpeed', 'WaveSpeed'});
 writetable(output_table, 'Corrected_Combined_Pier_Data_BE.csv');
 
 % Determine individual radius limits for each plot
@@ -418,7 +437,7 @@ onshore_windDirection = filtered_windDirection(onshore_idx);
 onshore_stressDirection = filtered_stressDirection(onshore_idx);
 
 % Bin the wind direction data
-bin_size = 5; 
+bin_size = 9; 
 bin_edges = -90:bin_size:90;
 bin_centers = bin_edges(1:end-1) + bin_size / 2;
 
